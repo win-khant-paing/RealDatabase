@@ -38,7 +38,7 @@
           opacity: 1;
         }
       }
-      @keyframes pulseRing {
+      @keyframes pulse {
         0%,
         100% {
           box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35);
@@ -54,9 +54,8 @@
         animation: popIn 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
       }
       .ring-pulse {
-        animation: pulseRing 2s infinite;
+        animation: pulse 2s infinite;
       }
-
       #reader {
         border: none !important;
         background: #0f172a;
@@ -141,7 +140,7 @@
             </div>
             <div class="text-center">
               <p class="font-bold text-xl text-slate-800">Customer</p>
-              <p class="text-sm text-slate-500 mt-0.5">Get your queue ticket</p>
+              <p class="text-sm text-slate-500 mt-0.5">Get your queue token</p>
             </div>
           </button>
           <button
@@ -166,7 +165,7 @@
       <!-- SHOP SELECT (Customer) -->
       <div
         id="view-shop-select"
-        class="view hidden flex-grow flex flex-col items-center justify-start pt-12 p-6 fade-in"
+        class="view hidden flex-grow flex flex-col items-center justify-center p-6 fade-in"
       >
         <div class="text-center mb-8">
           <h2 class="text-3xl font-black text-slate-800 tracking-tight mb-2">
@@ -174,11 +173,12 @@
           </h2>
           <p class="text-slate-500">Choose the shop you want to queue for</p>
         </div>
+
+        <!-- Dynamically loaded list of shops -->
         <div
-          id="shop-list-container"
-          class="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl"
+          id="dynamic-shop-list"
+          class="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-xl"
         >
-          <!-- Dynamic Shops Injected Here -->
           <div class="col-span-full text-center text-slate-400 py-10">
             <i class="ph ph-spinner animate-spin text-3xl"></i>
           </div>
@@ -202,9 +202,10 @@
             </div>
             <h2 class="text-2xl font-black text-slate-800">Staff Login</h2>
             <p class="text-slate-500 text-sm mt-1">
-              Enter your Shop Name and Password
+              Enter your shop credentials
             </p>
           </div>
+
           <div class="flex flex-col gap-4 mb-6">
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1.5"
@@ -214,7 +215,7 @@
                 type="text"
                 id="login-user"
                 required
-                class="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                class="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
                 placeholder="e.g. KFC"
               />
             </div>
@@ -226,11 +227,12 @@
                 type="password"
                 id="login-pass"
                 required
-                class="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                class="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
                 placeholder="••••••••"
               />
             </div>
           </div>
+
           <button
             type="submit"
             id="btn-login"
@@ -252,22 +254,14 @@
           <div class="flex items-center gap-3">
             <div
               id="customer-shop-icon"
-              class="w-10 h-10 rounded-full flex items-center justify-center font-black text-white shadow-sm bg-indigo-600"
+              class="w-10 h-10 rounded-full flex items-center justify-center font-black text-white shadow-sm"
             ></div>
-            <div>
-              <h2
-                id="customer-shop-name"
-                class="font-bold text-lg text-slate-800 leading-tight"
-              >
-                Shop Name
-              </h2>
-              <p
-                id="customer-shop-loc"
-                class="text-xs text-slate-500 font-medium"
-              >
-                Location
-              </p>
-            </div>
+            <h2
+              id="customer-shop-name"
+              class="font-bold text-lg text-slate-800"
+            >
+              Shop Name
+            </h2>
           </div>
           <span
             class="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-lg uppercase tracking-wider"
@@ -315,7 +309,7 @@
           </div>
         </div>
 
-        <!-- Get Ticket Card -->
+        <!-- Get Token Card -->
         <div
           class="bg-white w-full max-w-lg rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
         >
@@ -365,7 +359,7 @@
           </button>
         </div>
 
-        <!-- My Tickets -->
+        <!-- My Tokens -->
         <div class="w-full max-w-lg">
           <p
             id="my-tokens-label"
@@ -472,7 +466,7 @@
           </button>
         </div>
 
-        <!-- Ticket Grid -->
+        <!-- Token Grid -->
         <div
           id="staff-grid"
           class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
@@ -511,7 +505,7 @@
           <p
             class="text-center text-sm text-slate-500 mt-3 flex items-center justify-center gap-1.5"
           >
-            <i class="ph ph-camera"></i> Point camera at customer's QR
+            <i class="ph ph-camera"></i> Point camera at customer's QR code
           </p>
         </div>
       </div>
@@ -575,24 +569,23 @@
       const VAPID_PUBLIC_KEY =
         "BNUoYwNtQvGNLhqIinSVm8etZR0fkzHDmYnRWxWaNE9dHJhN0rGoomDU_CoZC0BtrYTW24-Uj_-askVw1qHiy24";
       const PUSH_URL = `${SUPABASE_URL}/functions/v1/send-push`;
+
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
       // ── STATE ─────────────────────────────────────────────────────────────────
-      let tickets = [];
-      let availableShops = [];
+      let tokens = [];
       let staffFilter = "ALL";
       let scanner = null;
-      let myTicketIds = JSON.parse(
-        localStorage.getItem("qm_my_tickets_v2") || "[]",
-      );
+      let myTokenIds = JSON.parse(localStorage.getItem("qm_my_tokens") || "[]");
 
       let currentRole = null;
-      let selectedShop = null; // Full Shop Object
+      let selectedShop = null;
       let rtChannel = null;
 
       let notifiedAlmost = new Set();
-      let notifiedCancelled = new Set();
+      let notifiedCanceled = new Set();
       let notifiedWarning = new Set();
+      let SHOP_INFO = {}; // Dynamically populated from DB
 
       // ── TIMER SYSTEM ──────────────────────────────────────────────────────────────
       const CALL_WINDOW_MS = 3 * 60 * 1000;
@@ -600,7 +593,7 @@
 
       let displayTickInterval = null;
       let warningShownFor = new Set();
-      let expiredTicketId = null;
+      let expiredTokenId = null;
       let expiredModalInterval = null;
 
       function formatCountdown(ms) {
@@ -608,9 +601,8 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
       }
 
-      function computeTimerState(calledAtIso) {
-        const calledAt = new Date(calledAtIso).getTime();
-        const elapsed = Date.now() - calledAt;
+      function computeTimerState(calledAtMs) {
+        const elapsed = Date.now() - calledAtMs;
         const warnRemain = CALL_WINDOW_MS - elapsed;
         const totalRemain = TOTAL_WINDOW_MS - elapsed;
         const inWarning = warnRemain <= 0 && totalRemain > 0;
@@ -621,36 +613,39 @@
         return { warnRemain, totalRemain, inWarning, displayMs, isUrgent };
       }
 
-      function startDisplayTimer(ticketId, notifiedAt) {
-        if (!notifiedAt) return;
+      function startDisplayTimer(tokenId, notifiedAtIso) {
+        if (!notifiedAtIso) return;
         if (!displayTickInterval)
           displayTickInterval = setInterval(tickTimerDisplays, 1000);
 
+        const calledAtMs = new Date(notifiedAtIso).getTime();
         const { warnRemain, totalRemain, inWarning } =
-          computeTimerState(notifiedAt);
+          computeTimerState(calledAtMs);
 
-        if (!myTicketIds.includes(ticketId)) return;
+        if (!myTokenIds.includes(tokenId)) return;
         if (totalRemain <= 0) return;
 
-        if (inWarning && !warningShownFor.has(ticketId)) {
-          showWarningModal(ticketId, Math.ceil(totalRemain / 1000));
+        if (inWarning && !warningShownFor.has(tokenId)) {
+          showWarningModal(tokenId, Math.ceil(totalRemain / 1000));
           return;
         }
 
-        if (warnRemain > 0 && !warningShownFor.has(ticketId)) {
+        if (warnRemain > 0 && !warningShownFor.has(tokenId)) {
           setTimeout(() => {
-            const tk = tickets.find((t) => t.id === ticketId);
-            if (tk?.status !== "CALLED") return;
-            if (warningShownFor.has(ticketId)) return;
-            const { totalRemain: tRem } = computeTimerState(tk.notifiedAt);
-            if (tRem > 0) showWarningModal(ticketId, Math.ceil(tRem / 1000));
+            const tok = tokens.find((t) => t.id === tokenId);
+            if (tok?.status !== "CALLED" || !tok.notifiedAt) return;
+            if (warningShownFor.has(tokenId)) return;
+            const { totalRemain: tRem } = computeTimerState(
+              new Date(tok.notifiedAt).getTime(),
+            );
+            if (tRem > 0) showWarningModal(tokenId, Math.ceil(tRem / 1000));
           }, warnRemain);
         }
       }
 
-      function stopDisplayTimer(ticketId) {
-        warningShownFor.delete(ticketId);
-        const stillCalled = tickets.some((t) => t.status === "CALLED");
+      function stopDisplayTimer(tokenId) {
+        warningShownFor.delete(tokenId);
+        const stillCalled = tokens.some((t) => t.status === "CALLED");
         if (!stillCalled && displayTickInterval) {
           clearInterval(displayTickInterval);
           displayTickInterval = null;
@@ -665,22 +660,22 @@
       }
 
       function tickTimerDisplays() {
-        const calledTickets = tickets.filter(
+        const calledTokens = tokens.filter(
           (t) => t.status === "CALLED" && t.notifiedAt,
         );
-        if (calledTickets.length === 0) {
+        if (calledTokens.length === 0) {
           clearInterval(displayTickInterval);
           displayTickInterval = null;
           return;
         }
 
-        calledTickets.forEach((ticket) => {
+        calledTokens.forEach((token) => {
+          const calledAtMs = new Date(token.notifiedAt).getTime();
           const { warnRemain, totalRemain, inWarning, displayMs, isUrgent } =
-            computeTimerState(ticket.notifiedAt);
+            computeTimerState(calledAtMs);
 
-          // Update Customer Badges
           const custBadge = document.querySelector(
-            `[data-timer-badge="${ticket.id}"]`,
+            `[data-timer-badge="${token.id}"]`,
           );
           if (custBadge) {
             const timerText = custBadge.querySelector("[data-timer-text]");
@@ -712,9 +707,8 @@
               cls;
           }
 
-          // Update Staff Badges
           const staffChip = document.querySelector(
-            `[data-timer-staff="${ticket.id}"]`,
+            `[data-timer-staff="${token.id}"]`,
           );
           if (staffChip) {
             const txt = staffChip.querySelector("[data-timer-staff-text]");
@@ -731,24 +725,23 @@
             }
           }
 
-          // Show Modal to user if app is open
           if (
-            myTicketIds.includes(ticket.id) &&
+            myTokenIds.includes(token.id) &&
             inWarning &&
-            !warningShownFor.has(ticket.id)
+            !warningShownFor.has(token.id)
           ) {
             const tRem = Math.ceil(totalRemain / 1000);
-            showWarningModal(ticket.id, tRem);
+            showWarningModal(token.id, tRem);
           }
 
-          // STAFF DEVICE acts as the background controller for pushes & auto-cancel
           if (currentRole === "staff") {
-            if (inWarning && !notifiedWarning.has(ticket.id)) {
-              notifiedWarning.add(ticket.id);
-              if (ticket.subscription) {
+            if (inWarning && !notifiedWarning.has(token.id)) {
+              notifiedWarning.add(token.id);
+              if (token.subscription) {
+                const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
                 sendPush(
-                  ticket.subscription,
-                  `⚠️ ${selectedShop.name}: Time is up!`,
+                  token.subscription,
+                  `⚠️ ${shopName}: Time is up!`,
                   `Your 3 minutes have passed. Return to the counter now or your ticket will be cancelled.`,
                   "warning",
                 );
@@ -757,27 +750,27 @@
 
             if (
               totalRemain <= 0 &&
-              !notifiedWarning.has(ticket.id + "_cancelled")
+              !notifiedWarning.has(token.id + "_cancelled")
             ) {
-              notifiedWarning.add(ticket.id + "_cancelled");
-              updateStatus(ticket.id, "CANCELLED");
+              notifiedWarning.add(token.id + "_cancelled");
+              updateStatus(token.id, "CANCELLED");
             }
           }
         });
       }
 
       function restoreTimers() {
-        tickets
+        tokens
           .filter((t) => t.status === "CALLED" && t.notifiedAt)
-          .forEach((t) => {
-            startDisplayTimer(t.id, t.notifiedAt);
+          .forEach((token) => {
+            startDisplayTimer(token.id, token.notifiedAt);
           });
       }
 
-      function showWarningModal(ticketId, secondsLeft) {
-        if (warningShownFor.has(ticketId)) return;
-        warningShownFor.add(ticketId);
-        expiredTicketId = ticketId;
+      function showWarningModal(tokenId, secondsLeft) {
+        if (warningShownFor.has(tokenId)) return;
+        warningShownFor.add(tokenId);
+        expiredTokenId = tokenId;
         const m = document.getElementById("expired-modal");
         m.classList.remove("hidden");
         m.classList.add("flex");
@@ -806,34 +799,34 @@
         m.classList.remove("flex");
       }
 
-      function onServerAutoCancel(ticketId) {
-        if (expiredTicketId === ticketId) {
-          expiredTicketId = null;
+      function onServerAutoCancel(tokenId) {
+        if (expiredTokenId === tokenId) {
+          expiredTokenId = null;
           closeWarningModal();
         }
-        stopDisplayTimer(ticketId);
+        stopDisplayTimer(tokenId);
         const warn = document.getElementById("auto-cancel-warning");
         if (warn) warn.classList.remove("hidden");
       }
 
       window.handleQueueAgain = async function () {
-        if (!expiredTicketId) return;
-        const tid = expiredTicketId;
-        expiredTicketId = null;
+        if (!expiredTokenId) return;
+        const tid = expiredTokenId;
+        expiredTokenId = null;
         closeWarningModal();
         await updateStatus(tid, "CANCELLED");
         await generateToken();
       };
 
       window.handleExpiredCancel = async function () {
-        if (!expiredTicketId) return;
-        const tid = expiredTicketId;
-        expiredTicketId = null;
+        if (!expiredTokenId) return;
+        const tid = expiredTokenId;
+        expiredTokenId = null;
         closeWarningModal();
         await updateStatus(tid, "CANCELLED");
       };
 
-      // ── BOOT ──────────────────────────────────────────────────────────────────
+      // ── BOOT & DATA LOADING ───────────────────────────────────────────────────
       window.addEventListener("load", async () => {
         if ("serviceWorker" in navigator) {
           try {
@@ -844,55 +837,88 @@
               playSound(e.data.notificationType);
           });
         }
-
         switchView("home");
-        await fetchShops();
       });
 
-      async function fetchShops() {
+      async function loadShopsList() {
         const { data, error } = await supabase
           .from("Shop")
-          .select("*")
+          .select("id, name")
           .eq("is_available", true);
-        if (data) availableShops = data;
+        if (error) {
+          toast("Failed to load shops", "error");
+          return;
+        }
+
+        const list = document.getElementById("dynamic-shop-list");
+        list.innerHTML = "";
+
+        const bgColors = [
+          "bg-indigo-600",
+          "bg-red-600",
+          "bg-emerald-500",
+          "bg-amber-500",
+          "bg-blue-500",
+          "bg-purple-500",
+        ];
+
+        data.forEach((shop, i) => {
+          const bg = bgColors[i % bgColors.length];
+          const initial = shop.name.charAt(0).toUpperCase();
+          SHOP_INFO[shop.id] = { name: shop.name, initial: initial, bg: bg };
+
+          list.innerHTML += `
+            <button onclick="selectShop('${shop.id}')" class="bg-white hover:bg-slate-50 border-2 border-transparent hover:border-slate-300 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all flex flex-col items-center gap-4">
+                <div class="${bg} text-white w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black shadow-inner">
+                    ${initial}
+                </div>
+                <p class="font-bold text-lg text-slate-800">${shop.name}</p>
+            </button>
+        `;
+        });
       }
 
-      // ── DATA INIT ─────────────────────────────────────────────────────────────
+      // ── MULTI-TENANT DATA INIT ────────────────────────────────────────────────
       async function initShopData() {
         clearAllTimers();
         notifiedAlmost.clear();
-        notifiedCancelled.clear();
+        notifiedCanceled.clear();
         notifiedWarning.clear();
         if (rtChannel) supabase.removeChannel(rtChannel);
 
         const { data, error } = await supabase
           .from("Ticket")
           .select("*")
-          .eq("shopId", selectedShop.id)
+          .eq("shopId", selectedShop)
           .order("createdAt", { ascending: true });
 
         if (error) {
           console.error("Load error:", error);
           return;
         }
-        tickets = data || [];
+        tokens = data || [];
 
-        const shopName = selectedShop.name || "Unknown Shop";
-        const shopInitial = shopName.charAt(0).toUpperCase();
+        const shop = SHOP_INFO[selectedShop] || {
+          name: "Unknown",
+          initial: "?",
+          bg: "bg-indigo-600",
+        };
 
         if (currentRole === "customer") {
-          document.getElementById("customer-shop-name").textContent = shopName;
-          document.getElementById("customer-shop-loc").textContent =
-            selectedShop.location || "Location not provided";
+          document.getElementById("customer-shop-name").textContent = shop.name;
           document.getElementById("customer-shop-name-btn").textContent =
-            shopName;
+            shop.name;
           const icon = document.getElementById("customer-shop-icon");
-          icon.textContent = shopInitial;
+          icon.className = `w-10 h-10 rounded-full flex items-center justify-center font-black text-white shadow-sm ${shop.bg}`;
+          icon.textContent = shop.initial;
+          document.getElementById("customer-card-accent").className =
+            `h-1.5 ${shop.bg}`;
         }
 
         if (currentRole === "staff") {
           const badge = document.getElementById("staff-shop-badge");
-          badge.textContent = `${shopName} Dashboard`;
+          badge.textContent = `${shop.name} Dashboard`;
+          badge.className = `text-white text-xs font-bold px-2.5 py-1 rounded-md uppercase tracking-wider ${shop.bg}`;
         }
 
         refreshViews();
@@ -902,63 +928,69 @@
 
       function subscribeRealtime() {
         rtChannel = supabase
-          .channel(`public:Ticket:shopId=eq.${selectedShop.id}`)
+          .channel(`ticket_${selectedShop}`)
           .on(
             "postgres_changes",
             {
               event: "*",
               schema: "public",
               table: "Ticket",
-              filter: `shopId=eq.${selectedShop.id}`,
+              filter: `shopId=eq.${selectedShop}`,
             },
             async (payload) => {
-              if (payload.new && payload.new.shopId !== selectedShop.id) return;
+              if (payload.new && payload.new.shopId !== selectedShop) return;
 
               if (payload.eventType === "INSERT") {
-                if (!tickets.find((t) => t.id === payload.new.id))
-                  tickets.push(payload.new);
+                if (!tokens.find((t) => t.id === payload.new.id))
+                  tokens.push(payload.new);
               } else if (payload.eventType === "UPDATE") {
-                const i = tickets.findIndex((t) => t.id === payload.new.id);
-                const existing = i !== -1 ? tickets[i] : {};
-                const merged = { ...existing, ...payload.new };
-                if (i !== -1) tickets[i] = merged;
-                else tickets.push(merged);
+                const i = tokens.findIndex((t) => t.id === payload.new.id);
+                const existingToken = i !== -1 ? tokens[i] : {};
+                const mergedToken = { ...existingToken, ...payload.new };
 
-                if (merged.status === "CALLED" && merged.notifiedAt) {
-                  startDisplayTimer(merged.id, merged.notifiedAt);
+                if (i !== -1) tokens[i] = mergedToken;
+                else tokens.push(mergedToken);
+
+                if (mergedToken.status === "CALLED" && mergedToken.notifiedAt) {
+                  startDisplayTimer(mergedToken.id, mergedToken.notifiedAt);
                 }
                 if (
-                  merged.status === "SERVED" ||
-                  merged.status === "CANCELLED"
+                  mergedToken.status === "SERVED" ||
+                  mergedToken.status === "CANCELLED"
                 ) {
-                  stopDisplayTimer(merged.id);
+                  stopDisplayTimer(mergedToken.id);
                   if (
-                    merged.status === "CANCELLED" &&
-                    myTicketIds.includes(merged.id)
+                    mergedToken.status === "CANCELLED" &&
+                    myTokenIds.includes(mergedToken.id)
                   ) {
-                    onServerAutoCancel(merged.id);
-                    if (!notifiedCancelled.has(merged.id)) {
-                      notifiedCancelled.add(merged.id);
-                      if (merged.subscription) {
-                        sendPush(
-                          merged.subscription,
-                          `❌ ${selectedShop.name}: Ticket Cancelled`,
-                          `Your ticket #${merged.ticketNo} has been cancelled.`,
-                          "canceled",
-                        );
-                      }
+                    onServerAutoCancel(mergedToken.id);
+
+                    // PUSH TRIGGER: Cancelled Push
+                    if (
+                      mergedToken.subscription &&
+                      !notifiedCanceled.has(mergedToken.id)
+                    ) {
+                      notifiedCanceled.add(mergedToken.id);
+                      const shopName =
+                        SHOP_INFO[selectedShop]?.name || "the shop";
+                      sendPush(
+                        mergedToken.subscription,
+                        `❌ ${shopName}: Ticket Cancelled`,
+                        `Your ticket #${mergedToken.ticketNo} has been cancelled.`,
+                        "canceled",
+                      );
                     }
                   }
                   if (
-                    merged.status === "SERVED" &&
-                    expiredTicketId === merged.id
+                    mergedToken.status === "SERVED" &&
+                    expiredTokenId === mergedToken.id
                   ) {
-                    expiredTicketId = null;
+                    expiredTokenId = null;
                     closeWarningModal();
                   }
                 }
               } else if (payload.eventType === "DELETE") {
-                tickets = tickets.filter((t) => t.id !== payload.old.id);
+                tokens = tokens.filter((t) => t.id !== payload.old.id);
               }
 
               refreshViews();
@@ -970,103 +1002,29 @@
 
       function checkQueuePositions() {
         if (currentRole !== "customer") return;
-        const pending = tickets
+        const pending = tokens
           .filter((t) => t.status === "PENDING")
-          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
 
-        myTicketIds.forEach((tId) => {
-          const pos = pending.findIndex((t) => t.id === tId);
-          if (pos === 1 && !notifiedAlmost.has(tId)) {
-            notifiedAlmost.add(tId);
-            const tk = tickets.find((t) => t.id === tId);
-            if (tk && tk.subscription) {
+        myTokenIds.forEach((tokenId) => {
+          const pos = pending.findIndex((t) => t.id === tokenId);
+          if (pos === 1 && !notifiedAlmost.has(tokenId)) {
+            notifiedAlmost.add(tokenId);
+            const token = tokens.find((t) => t.id === tokenId);
+            if (token && token.subscription) {
+              const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
               sendPush(
-                tk.subscription,
-                `⏳ ${selectedShop.name}: You're Next!`,
+                token.subscription,
+                `⏳ ${shopName}: You're Next!`,
                 `There is only 1 person ahead of you. Get ready!`,
                 "queued",
               );
             }
           }
         });
-      }
-
-      // ── PUSH NOTIFICATIONS ──────────────────────────────────────────────────
-      async function setupPush(ticketId, position, ticketNo) {
-        if (!("Notification" in window) || !("PushManager" in window)) return;
-        const perm = await Notification.requestPermission();
-        if (perm !== "granted") return;
-
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          const sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
-          });
-
-          await supabase
-            .from("Ticket")
-            .update({ subscription: sub.toJSON() })
-            .eq("id", ticketId);
-
-          if (position === 1) {
-            await sendPush(
-              sub.toJSON(),
-              `🔔 ${selectedShop.name}: It's Your Turn!`,
-              `Ticket #${ticketNo} — please come to the counter within 3 minutes!`,
-              "called",
-            );
-          } else {
-            const ahead = position - 1;
-            const peopleStr =
-              ahead === 1 ? "1 person is" : `${ahead} people are`;
-            await sendPush(
-              sub.toJSON(),
-              `✅ ${selectedShop.name}: Ticket Confirmed`,
-              `You got Ticket #${ticketNo}. There ${peopleStr} ahead of you.`,
-              "queued",
-            );
-          }
-        } catch (e) {
-          console.warn("Push subscribe failed:", e);
-        }
-      }
-
-      async function sendPush(subscription, title, body, type = "generic") {
-        if (!subscription) return;
-        try {
-          // Defensively ensure subscription is an object before stringifying,
-          // to prevent edge function crashes if the DB returns a JSON string.
-          let subPayload = subscription;
-          if (typeof subscription === "string") {
-            try {
-              subPayload = JSON.parse(subscription);
-            } catch (e) {}
-          }
-
-          const res = await fetch(PUSH_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_ANON}`,
-            },
-            body: JSON.stringify({
-              subscription: subPayload,
-              title,
-              body,
-              type,
-            }),
-          });
-          if (!res.ok) console.error("Push failed:", await res.text());
-        } catch (e) {
-          console.warn("Push error:", e);
-        }
-      }
-
-      function urlB64ToUint8Array(b64) {
-        const pad = "=".repeat((4 - (b64.length % 4)) % 4);
-        const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
-        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
       }
 
       // ── NAVIGATION & AUTH ─────────────────────────────────────────────────────
@@ -1084,8 +1042,8 @@
           clearAllTimers();
           if (rtChannel) supabase.removeChannel(rtChannel);
         } else if (view === "shop-select") {
+          loadShopsList();
           navRight.innerHTML = `<button onclick="goHome()" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm transition"><i class="ph ph-arrow-left"></i> Back</button>`;
-          renderShopList();
         } else if (view === "staff-login") {
           navRight.innerHTML = `<button onclick="goHome()" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm transition"><i class="ph ph-arrow-left"></i> Back</button>`;
         } else if (view === "customer") {
@@ -1098,37 +1056,17 @@
         }
       };
 
-      window.goHome = () => switchView("home");
-      window.logoutStaff = () => {
+      window.goHome = function () {
+        switchView("home");
+      };
+
+      window.logoutStaff = function () {
         toast("Logged out successfully", "info");
         switchView("home");
       };
 
-      function renderShopList() {
-        const container = document.getElementById("shop-list-container");
-        if (availableShops.length === 0) {
-          container.innerHTML = `<div class="col-span-full text-center text-slate-500 py-10 bg-white rounded-2xl border border-slate-200 shadow-sm"><i class="ph ph-storefront text-5xl mb-2 text-slate-300"></i><p>No active shops found.</p></div>`;
-          return;
-        }
-
-        container.innerHTML = availableShops
-          .map((shop) => {
-            const initial = shop.name.charAt(0).toUpperCase();
-            return `
-            <button onclick="selectShop('${shop.id}')" class="bg-white hover:bg-indigo-50 border-2 border-transparent hover:border-indigo-400 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all flex flex-col items-center gap-4">
-                <div class="bg-indigo-100 text-indigo-600 w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black shadow-inner">${initial}</div>
-                <div class="text-center">
-                    <p class="font-bold text-lg text-slate-800 leading-tight">${shop.name}</p>
-                    <p class="text-xs text-slate-500 mt-1"><i class="ph ph-map-pin"></i> ${shop.location}</p>
-                </div>
-            </button>`;
-          })
-          .join("");
-      }
-
       window.selectShop = async function (shopId) {
-        selectedShop = availableShops.find((s) => s.id === shopId);
-        if (!selectedShop) return;
+        selectedShop = shopId;
         currentRole = "customer";
         switchView("customer");
         await initShopData();
@@ -1145,10 +1083,10 @@
         const u = document.getElementById("login-user").value.trim();
         const p = document.getElementById("login-pass").value.trim();
 
-        // Check against new Shop table
+        // Staff now logs in by checking Shop's credentials in the newly provided DB
         const { data, error } = await supabase
           .from("Shop")
-          .select("*")
+          .select("id, name")
           .eq("name", u)
           .eq("password", p)
           .single();
@@ -1157,31 +1095,40 @@
         btn.innerHTML = prevHtml;
 
         if (error || !data) {
-          toast("Invalid Shop Name or Password", "error");
+          toast("Invalid shop name or password", "error");
           return;
         }
 
+        // Quick populate SHOP_INFO for the dash
+        SHOP_INFO[data.id] = {
+          name: data.name,
+          initial: data.name.charAt(0).toUpperCase(),
+          bg: "bg-emerald-600",
+        };
+
         document.getElementById("login-pass").value = "";
-        selectedShop = data;
+        selectedShop = data.id;
         currentRole = "staff";
-        toast(`Welcome to ${selectedShop.name} Dashboard!`, "success");
+        toast(`Welcome, ${data.name} Staff!`, "success");
         switchView("staff");
         await initShopData();
       };
 
-      // ── TICKET GENERATION ──────────────────────────────────────────────────────
+      // ── TOKEN GENERATION ──────────────────────────────────────────────────────
       window.generateToken = async function () {
         const btn = document.getElementById("get-token-btn");
         btn.disabled = true;
         btn.innerHTML =
           '<i class="ph ph-spinner animate-spin text-2xl"></i> Generating...';
 
-        // Calculate next ticketNo
-        const maxTicketNo =
-          tickets.length > 0 ? Math.max(...tickets.map((t) => t.ticketNo)) : 0;
-        const ticketNo = maxTicketNo + 1;
+        // Calculate max ticket number for current shop
+        const maxTicketNo = tokens.reduce(
+          (max, t) => Math.max(max, t.ticketNo || 0),
+          0,
+        );
+        const userNumber = maxTicketNo + 1;
 
-        const activeCount = tickets.filter(
+        const activeCount = tokens.filter(
           (t) => t.status === "PENDING" || t.status === "CALLED",
         ).length;
         const queuePosition = activeCount + 1;
@@ -1189,9 +1136,9 @@
         const { data, error } = await supabase
           .from("Ticket")
           .insert({
-            ticketNo: ticketNo,
-            shopId: selectedShop.id,
+            shopId: selectedShop,
             status: "PENDING",
+            ticketNo: userNumber,
             personCount: 1,
           })
           .select()
@@ -1205,55 +1152,124 @@
           return;
         }
 
-        myTicketIds.push(data.id);
-        localStorage.setItem("qm_my_tickets_v2", JSON.stringify(myTicketIds));
+        const newId = data.id;
+
+        if (queuePosition <= 2) notifiedAlmost.add(newId);
+
+        myTokenIds.push(newId);
+        localStorage.setItem("qm_my_tokens", JSON.stringify(myTokenIds));
 
         btn.disabled = false;
         btn.innerHTML = '<i class="ph ph-ticket text-2xl"></i> Get My Ticket';
-        toast(
-          `Ticket #${ticketNo} created for ${selectedShop.name}!`,
-          "success",
-        );
-
-        // Register Web Push via Edge Function first to avoid race conditions
-        await setupPush(data.id, queuePosition, ticketNo);
+        toast(`Ticket #${userNumber} created!`, "success");
 
         if (queuePosition === 1) {
-          // Auto-call if first in line
-          await updateStatus(data.id, "CALLED");
+          const calledAtIso = new Date().toISOString();
+          await supabase
+            .from("Ticket")
+            .update({ status: "CALLED", notifiedAt: calledAtIso })
+            .eq("id", newId);
+          startDisplayTimer(newId, calledAtIso);
         }
+
+        await setupPush(newId, queuePosition, userNumber);
       };
 
+      // ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
+      async function setupPush(tokenId, position, ticketNo) {
+        if (!("Notification" in window) || !("PushManager" in window)) return;
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+          });
+
+          await supabase
+            .from("Ticket")
+            .update({ subscription: sub.toJSON() })
+            .eq("id", tokenId);
+          const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
+
+          if (position === 1) {
+            await sendPush(
+              sub.toJSON(),
+              `🔔 ${shopName}: It's Your Turn!`,
+              `Ticket #${ticketNo} — please come to the counter within 3 minutes!`,
+              "immediate_call",
+            );
+          } else {
+            const ahead = position - 1;
+            const peopleStr =
+              ahead === 1 ? "1 person is" : `${ahead} people are`;
+            await sendPush(
+              sub.toJSON(),
+              `✅ ${shopName}: Ticket Confirmed`,
+              `You got ticket #${ticketNo}. There ${peopleStr} ahead of you.`,
+              "queued",
+            );
+          }
+        } catch (e) {
+          console.warn("Push subscribe failed:", e);
+        }
+      }
+
+      async function sendPush(subscription, title, body, type = "generic") {
+        if (!subscription) return;
+        try {
+          const res = await fetch(PUSH_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_ANON}`,
+            },
+            body: JSON.stringify({ subscription, title, body, type }),
+          });
+          if (!res.ok) console.error("Push failed:", await res.text());
+        } catch (e) {
+          console.warn("Push error:", e);
+        }
+      }
+
+      function urlB64ToUint8Array(b64) {
+        const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+        const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+      }
+
       // ── STATUS UPDATES ────────────────────────────────────────────────────────
-      window.updateStatus = async function (ticketId, newStatus) {
-        const i = tickets.findIndex((t) => t.id === ticketId);
-        const notifiedAtIso =
-          newStatus === "CALLED" ? new Date().toISOString() : null;
+      window.updateStatus = async function (tokenId, newStatus) {
+        const i = tokens.findIndex((t) => t.id === tokenId);
+
+        const timeIso = new Date().toISOString();
+        const newNotifiedAt = newStatus === "CALLED" ? timeIso : undefined;
+        const newServedAt = newStatus === "SERVED" ? timeIso : undefined;
 
         if (i !== -1) {
-          tickets[i].status = newStatus;
-          if (notifiedAtIso) tickets[i].notifiedAt = notifiedAtIso;
+          tokens[i].status = newStatus;
+          if (newNotifiedAt) tokens[i].notifiedAt = newNotifiedAt;
+          if (newServedAt) tokens[i].servedAt = newServedAt;
         }
         refreshViews();
 
         const updatePayload = { status: newStatus };
-        if (notifiedAtIso) updatePayload.notifiedAt = notifiedAtIso;
-        if (newStatus === "SERVED")
-          updatePayload.servedAt = new Date().toISOString();
+        if (newNotifiedAt) updatePayload.notifiedAt = newNotifiedAt;
+        if (newServedAt) updatePayload.servedAt = newServedAt;
 
         const { error } = await supabase
           .from("Ticket")
           .update(updatePayload)
-          .eq("id", ticketId);
-
+          .eq("id", tokenId);
         if (error) {
           toast("Update failed", "error");
-          if (i !== -1) await initShopData(); // reload on failure
+          if (i !== -1) {
+            await initShopData();
+          }
           return;
         }
-
-        const tk = tickets.find((t) => t.id === ticketId);
-        const tNum = tk ? tk.ticketNo : "??";
 
         const labels = {
           CALLED: "Called",
@@ -1261,31 +1277,35 @@
           CANCELLED: "Cancelled",
         };
         toast(
-          `Ticket #${tNum} → ${labels[newStatus] || newStatus}`,
+          `Ticket updated → ${labels[newStatus] || newStatus}`,
           newStatus === "CANCELLED" ? "info" : "success",
         );
 
         if (newStatus === "CALLED") {
-          if (tk && tk.subscription) {
-            sendPush(
-              tk.subscription,
-              `🔔 ${selectedShop.name}: It's Your Turn!`,
-              `Ticket #${tNum} — please come to the counter within 3 minutes!`,
+          const token = tokens.find((t) => t.id === tokenId);
+          if (token?.subscription) {
+            const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
+            await sendPush(
+              token.subscription,
+              `🔔 ${shopName}: It's Your Turn!`,
+              `Ticket #${token.ticketNo} — please come to the counter within 3 minutes!`,
               "called",
             );
           }
-          startDisplayTimer(ticketId, notifiedAtIso);
+          startDisplayTimer(tokenId, timeIso);
         }
 
         if (newStatus === "SERVED" || newStatus === "CANCELLED")
-          stopDisplayTimer(ticketId);
+          stopDisplayTimer(tokenId);
 
         if (newStatus === "SERVED" && currentRole === "customer") {
           const board = document.getElementById("now-serving-board");
           board.classList.remove("hidden", "pop-in");
           void board.offsetWidth;
           board.classList.add("pop-in");
-          document.getElementById("now-serving-token").textContent = tNum;
+          const servedToken = tokens.find((t) => t.id === tokenId);
+          document.getElementById("now-serving-token").textContent =
+            servedToken?.ticketNo || "---";
         }
 
         refreshViews();
@@ -1293,34 +1313,36 @@
 
       // ── RENDER: CUSTOMER ──────────────────────────────────────────────────────
       function renderCustomer() {
-        document.getElementById("stat-waiting").textContent = tickets.filter(
+        document.getElementById("stat-waiting").textContent = tokens.filter(
           (t) => t.status === "PENDING",
         ).length;
-        document.getElementById("stat-called").textContent = tickets.filter(
+        document.getElementById("stat-called").textContent = tokens.filter(
           (t) => t.status === "CALLED",
         ).length;
-        document.getElementById("stat-served").textContent = tickets.filter(
+        document.getElementById("stat-served").textContent = tokens.filter(
           (t) => t.status === "SERVED",
         ).length;
 
         const list = document.getElementById("my-tokens-list");
         const label = document.getElementById("my-tokens-label");
-        const mine = tickets.filter((t) => myTicketIds.includes(t.id));
+        const mine = tokens.filter((t) => myTokenIds.includes(t.id));
 
         label.classList.toggle("hidden", mine.length === 0);
         list.innerHTML = "";
 
-        const pending = tickets
+        const pending = tokens
           .filter((t) => t.status === "PENDING")
-          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
 
         mine
           .slice()
           .reverse()
-          .forEach((ticket) => {
-            const pos = pending.findIndex((t) => t.id === ticket.id);
+          .forEach((token) => {
+            const pos = pending.findIndex((t) => t.id === token.id);
             const card = document.createElement("div");
-
             const statusCfg = {
               PENDING: {
                 bar: "bg-amber-400",
@@ -1328,7 +1350,10 @@
               },
               CALLED: {
                 bar: "bg-blue-500",
-                badge: `<span data-timer-badge="${ticket.id}" class="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-lg ring-pulse inline-block">📢 Go to counter!<span data-timer-text></span><span data-timer-desc class="block text-xs text-blue-600 mt-0.5">📍 Please proceed to the counter now</span></span>`,
+                badge: `<span data-timer-badge="${token.id}" class="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-lg ring-pulse inline-block">
+                            📢 Go to counter!<span data-timer-text></span>
+                            <span data-timer-desc class="block text-xs text-blue-600 mt-0.5">📍 Please proceed to the counter now</span>
+                        </span>`,
               },
               SERVED: {
                 bar: "bg-emerald-500",
@@ -1339,7 +1364,7 @@
                 badge: `<span class="bg-red-50 text-red-600 text-xs font-bold px-2.5 py-1 rounded-lg">✕ Cancelled</span>`,
               },
             };
-            const cfg = statusCfg[ticket.status] || statusCfg.PENDING;
+            const cfg = statusCfg[token.status] || statusCfg.PENDING;
 
             card.className =
               "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden fade-in";
@@ -1349,22 +1374,23 @@
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-xs text-slate-400 font-semibold uppercase tracking-widest mb-0.5">Your Ticket</p>
-                        <p class="text-5xl font-black tracking-tight ${ticket.status === "CALLED" ? "text-blue-600" : ticket.status !== "PENDING" ? "text-slate-400 line-through" : "text-slate-800"}">#${ticket.ticketNo}</p>
+                        <p class="text-5xl font-black tracking-tight ${token.status === "CALLED" ? "text-blue-600" : token.status !== "PENDING" ? "text-slate-400 line-through" : "text-slate-800"}">#${token.ticketNo}</p>
                     </div>
-                    <div class="qr-wrap w-20 h-20 mt-1" id="qr-${ticket.id}"></div>
+                    <div class="qr-wrap w-20 h-20 mt-1" id="qr-${token.id}"></div>
                 </div>
                 <div class="flex items-center justify-between">
                     ${cfg.badge}
-                    <span class="text-xs text-slate-400">${new Date(ticket.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    <span class="text-xs text-slate-400">${new Date(token.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
             </div>`;
 
             list.appendChild(card);
+
             requestAnimationFrame(() => {
-              const qrEl = document.getElementById(`qr-${ticket.id}`);
+              const qrEl = document.getElementById(`qr-${token.id}`);
               if (qrEl && !qrEl.dataset.rendered) {
                 qrEl.dataset.rendered = "1";
-                renderQR(ticket.id, qrEl);
+                renderQR(token.id, qrEl);
               }
             });
           });
@@ -1373,14 +1399,14 @@
       function renderQR(text, container) {
         const img = document.createElement("img");
         img.src = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(text)}&bgcolor=ffffff&color=1e293b&margin=2`;
-        img.alt = text;
+        img.alt = "QR Code";
         img.className = "w-full h-full rounded-lg";
         container.appendChild(img);
       }
 
       // ── RENDER: STAFF ─────────────────────────────────────────────────────────
       function renderStaff() {
-        const pending = tickets.filter(
+        const pending = tokens.filter(
           (t) => t.status === "PENDING" || t.status === "CALLED",
         );
         document.getElementById("staff-waiting-count").textContent =
@@ -1388,18 +1414,28 @@
 
         const filtered =
           staffFilter === "ALL"
-            ? [...tickets].sort(
-                (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+            ? [...tokens].sort(
+                (a, b) =>
+                  new Date(a.createdAt).getTime() -
+                  new Date(b.createdAt).getTime(),
               )
-            : tickets
+            : tokens
                 .filter((t) => t.status === staffFilter)
-                .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                .sort(
+                  (a, b) =>
+                    new Date(a.createdAt).getTime() -
+                    new Date(b.createdAt).getTime(),
+                );
 
         const grid = document.getElementById("staff-grid");
         grid.innerHTML = "";
 
         if (filtered.length === 0) {
-          grid.innerHTML = `<div class="col-span-full flex flex-col items-center py-20 text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-200"><i class="ph ph-coffee text-5xl mb-3 text-slate-300"></i><p class="font-bold text-slate-500">No tickets here</p><p class="text-sm">Queue is clear!</p></div>`;
+          grid.innerHTML = `<div class="col-span-full flex flex-col items-center py-20 text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+            <i class="ph ph-coffee text-5xl mb-3 text-slate-300"></i>
+            <p class="font-bold text-slate-500">No tickets here</p>
+            <p class="text-sm">Queue is clear!</p>
+        </div>`;
           return;
         }
 
@@ -1426,33 +1462,46 @@
           },
         };
 
-        filtered.forEach((ticket) => {
-          const cfg = statusCfg[ticket.status] || statusCfg.PENDING;
-          const time = new Date(ticket.createdAt).toLocaleTimeString([], {
+        filtered.forEach((token) => {
+          const cfg = statusCfg[token.status] || statusCfg.PENDING;
+          const time = new Date(token.createdAt).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           });
           const card = document.createElement("div");
 
           let buttons = "";
-          if (ticket.status === "PENDING") {
-            buttons = `<button onclick="updateStatus('${ticket.id}','CALLED')" class="flex-1 bg-blue-50 hover:bg-blue-500 text-blue-700 hover:text-white py-2.5 rounded-xl font-bold text-sm transition border border-blue-100 flex items-center justify-center gap-1.5"><i class="ph ph-bell-ringing"></i> Call</button><button onclick="updateStatus('${ticket.id}','CANCELLED')" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white py-2.5 px-3.5 rounded-xl font-bold transition border border-red-100"><i class="ph ph-x"></i></button>`;
-          } else if (ticket.status === "CALLED") {
-            buttons = `<button onclick="updateStatus('${ticket.id}','SERVED')" class="flex-1 bg-emerald-50 hover:bg-emerald-500 text-emerald-700 hover:text-white py-2.5 rounded-xl font-bold text-sm transition border border-emerald-100 flex items-center justify-center gap-1.5"><i class="ph ph-check-circle"></i> Serve</button><button onclick="updateStatus('${ticket.id}','CANCELLED')" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white py-2.5 px-3.5 rounded-xl font-bold transition border border-red-100"><i class="ph ph-x"></i></button>`;
+          if (token.status === "PENDING") {
+            buttons = `
+                <button onclick="updateStatus('${token.id}','CALLED')" class="flex-1 bg-blue-50 hover:bg-blue-500 text-blue-700 hover:text-white py-2.5 rounded-xl font-bold text-sm transition border border-blue-100 flex items-center justify-center gap-1.5">
+                    <i class="ph ph-bell-ringing"></i> Call
+                </button>
+                <button onclick="updateStatus('${token.id}','CANCELLED')" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white py-2.5 px-3.5 rounded-xl font-bold transition border border-red-100">
+                    <i class="ph ph-x"></i>
+                </button>`;
+          } else if (token.status === "CALLED") {
+            buttons = `
+                <button onclick="updateStatus('${token.id}','SERVED')" class="flex-1 bg-emerald-50 hover:bg-emerald-500 text-emerald-700 hover:text-white py-2.5 rounded-xl font-bold text-sm transition border border-emerald-100 flex items-center justify-center gap-1.5">
+                    <i class="ph ph-check-circle"></i> Serve
+                </button>
+                <button onclick="updateStatus('${token.id}','CANCELLED')" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white py-2.5 px-3.5 rounded-xl font-bold transition border border-red-100">
+                    <i class="ph ph-x"></i>
+                </button>`;
           } else {
             buttons = `<p class="text-xs text-slate-400 font-medium text-center w-full">No further actions</p>`;
           }
 
           const staffTimerBadge =
-            ticket.status === "CALLED" && ticket.notifiedAt
+            token.status === "CALLED" && token.notifiedAt
               ? (() => {
+                  const calledAtMs = new Date(token.notifiedAt).getTime();
                   const {
                     warnRemain,
                     totalRemain,
                     inWarning,
                     displayMs,
                     isUrgent,
-                  } = computeTimerState(ticket.notifiedAt);
+                  } = computeTimerState(calledAtMs);
                   const colorCls =
                     inWarning || isUrgent
                       ? "bg-red-50 text-red-600"
@@ -1460,16 +1509,22 @@
                   const phase = inWarning
                     ? "auto-cancel window"
                     : "3-min window";
-                  return `<div data-timer-staff-wrap class="flex flex-col items-end gap-0.5"><span data-timer-staff="${ticket.id}" class="text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 ${colorCls}"><i class="ph ph-timer"></i><span data-timer-staff-text>${formatCountdown(displayMs)}</span></span><span data-timer-phase class="text-xs text-slate-400">${phase}</span></div>`;
+                  return `<div data-timer-staff-wrap class="flex flex-col items-end gap-0.5">
+                    <span data-timer-staff="${token.id}" class="text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 ${colorCls}">
+                        <i class="ph ph-timer"></i>
+                        <span data-timer-staff-text>${formatCountdown(displayMs)}</span>
+                    </span>
+                    <span data-timer-phase class="text-xs text-slate-400">${phase}</span>
+                </div>`;
                 })()
               : "";
 
           const staffCallDesc =
-            ticket.status === "CALLED" && ticket.notifiedAt
+            token.status === "CALLED" && token.notifiedAt
               ? (() => {
-                  const { warnRemain, inWarning } = computeTimerState(
-                    ticket.notifiedAt,
-                  );
+                  const calledAtMs = new Date(token.notifiedAt).getTime();
+                  const { warnRemain, totalRemain, inWarning } =
+                    computeTimerState(calledAtMs);
                   if (inWarning)
                     return `<p class="text-xs text-red-500 font-semibold mt-2 flex items-center gap-1"><i class="ph ph-warning-circle"></i> Auto-cancel window active</p>`;
                   if (warnRemain < 60000)
@@ -1478,8 +1533,23 @@
                 })()
               : "";
 
-          card.className = `bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden fade-in ${ticket.status === "CALLED" ? "ring-2 ring-blue-300 ring-pulse" : ""}`;
-          card.innerHTML = `<div class="h-1.5 ${cfg.bar}"></div><div class="p-5"><div class="flex justify-between items-center mb-4"><span class="text-xs font-bold px-2.5 py-1 rounded-lg ${cfg.badge}">${cfg.label}</span><div class="flex items-center gap-2">${staffTimerBadge}<span class="text-xs text-slate-400 flex items-center gap-1"><i class="ph ph-clock"></i> ${time}</span></div></div><p class="text-xs text-slate-400 font-semibold tracking-widest uppercase mb-0.5">Ticket</p><p class="text-5xl font-black tracking-tight text-slate-800 mb-1">#${ticket.ticketNo}</p>${staffCallDesc}<div class="flex gap-2 mt-4">${buttons}</div></div>`;
+          card.className = `bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden fade-in ${token.status === "CALLED" ? "ring-2 ring-blue-300 ring-pulse" : ""}`;
+          card.innerHTML = `
+            <div class="h-1.5 ${cfg.bar}"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-bold px-2.5 py-1 rounded-lg ${cfg.badge}">${cfg.label}</span>
+                    <div class="flex items-center gap-2">
+                        ${staffTimerBadge}
+                        <span class="text-xs text-slate-400 flex items-center gap-1"><i class="ph ph-clock"></i> ${time}</span>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 font-semibold tracking-widest uppercase mb-0.5">ID: ${token.id.slice(0, 8)}...</p>
+                <p class="text-5xl font-black tracking-tight text-slate-800 mb-1">#${token.ticketNo}</p>
+                ${staffCallDesc}
+                <div class="flex gap-2 mt-4">${buttons}</div>
+            </div>`;
+
           grid.appendChild(card);
         });
       }
@@ -1502,7 +1572,11 @@
       function styleFilterTabs() {
         document.querySelectorAll(".ftab").forEach((btn) => {
           const active = btn.dataset.f === staffFilter;
-          btn.className = `ftab shrink-0 px-4 py-2 rounded-xl font-bold text-sm border-2 transition-all ${active ? "bg-indigo-600 border-indigo-600 text-white shadow-sm" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`;
+          btn.className = `ftab shrink-0 px-4 py-2 rounded-xl font-bold text-sm border-2 transition-all ${
+            active
+              ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+              : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+          }`;
         });
       }
 
@@ -1518,6 +1592,7 @@
         );
         scanner.render(onScan, () => {});
       };
+
       window.closeScanner = function () {
         const modal = document.getElementById("scanner-modal");
         modal.classList.add("hidden");
@@ -1530,16 +1605,17 @@
 
       function onScan(text) {
         closeScanner();
-        const ticket = tickets.find((t) => t.id === text);
-        if (!ticket) {
-          toast("Ticket QR not valid for this shop!", "error");
+        const token = tokens.find((t) => t.id === text);
+        if (!token) {
+          toast(`Ticket UUID not found for this shop!`, "error");
           return;
         }
-        if (ticket.status === "SERVED" || ticket.status === "CANCELLED") {
-          toast(`Ticket #${ticket.ticketNo} already ${ticket.status}`, "error");
+        if (token.status === "SERVED" || token.status === "CANCELLED") {
+          toast(`Ticket #${token.ticketNo} already ${token.status}`, "error");
           return;
         }
-        updateStatus(ticket.id, "SERVED");
+
+        updateStatus(token.id, "SERVED");
       }
 
       // ── UTILS ─────────────────────────────────────────────────────────────────
@@ -1568,7 +1644,7 @@
           const isYourTurn =
             notifType === "called" || notifType === "immediate_call";
           const isWarning = notifType === "warning";
-          const isCancelled = notifType === "canceled";
+          const isCanceled = notifType === "canceled";
 
           function beep(freq, startTime, duration) {
             const osc = ctx.createOscillator();
@@ -1589,7 +1665,7 @@
           } else if (isWarning) {
             beep(400, ctx.currentTime, 0.4);
             beep(400, ctx.currentTime + 0.5, 0.4);
-          } else if (isCancelled) {
+          } else if (isCanceled) {
             beep(250, ctx.currentTime, 0.6);
           } else {
             beep(660, ctx.currentTime, 0.5);
