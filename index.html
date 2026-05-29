@@ -1123,7 +1123,7 @@
 
         // Calculate max ticket number for current shop
         const maxTicketNo = tokens.reduce(
-          (max, t) => Math.max(max, t.ticketNo || 0),
+          (max, t) => Math.max(max, t.ticketNo || t.user_number || 0),
           0,
         );
         const userNumber = maxTicketNo + 1;
@@ -1132,14 +1132,18 @@
           (t) => t.status === "PENDING" || t.status === "CALLED",
         ).length;
         const queuePosition = activeCount + 1;
+        const timestampMs = Date.now();
 
         const { data, error } = await supabase
           .from("Ticket")
           .insert({
             shopId: selectedShop,
+            shop_id: selectedShop, // Legacy fallback column
             status: "PENDING",
             ticketNo: userNumber,
+            user_number: userNumber, // Legacy fallback column
             personCount: 1,
+            timestamp: timestampMs, // Legacy fallback column
           })
           .select()
           .single();
@@ -1245,18 +1249,25 @@
         const i = tokens.findIndex((t) => t.id === tokenId);
 
         const timeIso = new Date().toISOString();
+        const timeMs = Date.now();
         const newNotifiedAt = newStatus === "CALLED" ? timeIso : undefined;
         const newServedAt = newStatus === "SERVED" ? timeIso : undefined;
 
         if (i !== -1) {
           tokens[i].status = newStatus;
-          if (newNotifiedAt) tokens[i].notifiedAt = newNotifiedAt;
+          if (newNotifiedAt) {
+            tokens[i].notifiedAt = newNotifiedAt;
+            tokens[i].called_at = timeMs;
+          }
           if (newServedAt) tokens[i].servedAt = newServedAt;
         }
         refreshViews();
 
         const updatePayload = { status: newStatus };
-        if (newNotifiedAt) updatePayload.notifiedAt = newNotifiedAt;
+        if (newNotifiedAt) {
+          updatePayload.notifiedAt = newNotifiedAt;
+          updatePayload.called_at = timeMs; // Legacy fallback column
+        }
         if (newServedAt) updatePayload.servedAt = newServedAt;
 
         const { error } = await supabase
