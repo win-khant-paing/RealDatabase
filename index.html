@@ -569,9 +569,12 @@
       import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm";
 
       // ── CONFIG ────────────────────────────────────────────────────────────────
-      const SUPABASE_URL = "https://seywyjyfkiiaicisqsvu.supabase.co";
+      const SUPABASE_URL = "https://uxiyznhycocsngfryvpa.supabase.co";
       const SUPABASE_ANON =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNleXd5anlma2lpYWljaXNxc3Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNTI3ODEsImV4cCI6MjA5NTYyODc4MX0.ybhvm4__FTBlb__PAhVcyOlf5fbxqmUNstotlVlXfpk";
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4aXl6bmh5Y29jc25nZnJ5dnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTQ0NTQsImV4cCI6MjA5NTUzMDQ1NH0.rw7_BpdnCFmS3sOJoLDPE80olVslkgj8k-9VfPxahiE";
+      const VAPID_PUBLIC_KEY =
+        "BDhYUfh3f7BH8sWccVdW-W28BYlT6P-9FGmNopulDO2BahEIpZnJ1iW-uTPEF2yLGQc6YpHyFPAecLISo95egrY";
+      const PUSH_URL = `${SUPABASE_URL}/functions/v1/send-push`;
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
       // ── STATE ─────────────────────────────────────────────────────────────────
@@ -742,11 +745,14 @@
           if (currentRole === "staff") {
             if (inWarning && !notifiedWarning.has(ticket.id)) {
               notifiedWarning.add(ticket.id);
-              triggerLocalNotification(
-                `⚠️ ${selectedShop.name}: Time is up!`,
-                `Your 3 minutes have passed. Return to the counter now or your ticket will be cancelled.`,
-                "warning",
-              );
+              if (ticket.subscription) {
+                sendPush(
+                  ticket.subscription,
+                  `⚠️ ${selectedShop.name}: Time is up!`,
+                  `Your 3 minutes have passed. Return to the counter now or your ticket will be cancelled.`,
+                  "warning",
+                );
+              }
             }
 
             if (
@@ -838,8 +844,6 @@
               playSound(e.data.notificationType);
           });
         }
-        // Ask for Local Notification Permission early for local simulated pushes
-        if ("Notification" in window) Notification.requestPermission();
 
         switchView("home");
         await fetchShops();
@@ -935,11 +939,14 @@
                     onServerAutoCancel(merged.id);
                     if (!notifiedCancelled.has(merged.id)) {
                       notifiedCancelled.add(merged.id);
-                      triggerLocalNotification(
-                        `❌ ${selectedShop.name}: Ticket Cancelled`,
-                        `Your ticket #${merged.ticketNo} has been cancelled.`,
-                        "canceled",
-                      );
+                      if (merged.subscription) {
+                        sendPush(
+                          merged.subscription,
+                          `❌ ${selectedShop.name}: Ticket Cancelled`,
+                          `Your ticket #${merged.ticketNo} has been cancelled.`,
+                          "canceled",
+                        );
+                      }
                     }
                   }
                   if (
@@ -971,41 +978,81 @@
           const pos = pending.findIndex((t) => t.id === tId);
           if (pos === 1 && !notifiedAlmost.has(tId)) {
             notifiedAlmost.add(tId);
-            triggerLocalNotification(
-              `⏳ ${selectedShop.name}: You're Next!`,
-              `There is only 1 person ahead of you. Get ready!`,
-              "queued",
-            );
+            const tk = tickets.find((t) => t.id === tId);
+            if (tk && tk.subscription) {
+              sendPush(
+                tk.subscription,
+                `⏳ ${selectedShop.name}: You're Next!`,
+                `There is only 1 person ahead of you. Get ready!`,
+                "queued",
+              );
+            }
           }
         });
       }
 
-      // ── LOCAL NOTIFICATION FALLBACK ──────────────────────────────────────────
-      // Since 'subscription' is removed from DB schema, we use local Service Worker
-      // notifications to simulate the native experience without backend routing.
-      async function triggerLocalNotification(title, body, type = "generic") {
-        if (
-          !("Notification" in window) ||
-          Notification.permission !== "granted"
-        )
-          return;
+      // ── PUSH NOTIFICATIONS ──────────────────────────────────────────────────
+      async function setupPush(ticketId, position) {
+        if (!("Notification" in window) || !("PushManager" in window)) return;
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+
         try {
           const reg = await navigator.serviceWorker.ready;
-          reg.showNotification(title, {
-            body: body,
-            icon: "/icon.png",
-            badge: "/icon.png",
-            vibrate:
-              type === "called" ? [300, 100, 300, 100, 300] : [200, 100, 200],
-            data: { type },
-            tag: "qm-" + type,
-            renotify: true,
-            requireInteraction: type === "called" || type === "warning",
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
           });
-          playSound(type);
+
+          await supabase
+            .from("Ticket")
+            .update({ subscription: sub.toJSON() })
+            .eq("id", ticketId);
+
+          if (position === 1) {
+            await sendPush(
+              sub.toJSON(),
+              `🔔 ${selectedShop.name}: It's Your Turn!`,
+              `Ticket #${ticketId} — please come to the counter within 3 minutes!`,
+              "called",
+            );
+          } else {
+            const ahead = position - 1;
+            const peopleStr =
+              ahead === 1 ? "1 person is" : `${ahead} people are`;
+            await sendPush(
+              sub.toJSON(),
+              `✅ ${selectedShop.name}: Ticket Confirmed`,
+              `You got Ticket #${ticketId}. There ${peopleStr} ahead of you.`,
+              "queued",
+            );
+          }
         } catch (e) {
-          console.warn("Local notification failed", e);
+          console.warn("Push subscribe failed:", e);
         }
+      }
+
+      async function sendPush(subscription, title, body, type = "generic") {
+        if (!subscription) return;
+        try {
+          const res = await fetch(PUSH_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_ANON}`,
+            },
+            body: JSON.stringify({ subscription, title, body, type }),
+          });
+          if (!res.ok) console.error("Push failed:", await res.text());
+        } catch (e) {
+          console.warn("Push error:", e);
+        }
+      }
+
+      function urlB64ToUint8Array(b64) {
+        const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+        const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
       }
 
       // ── NAVIGATION & AUTH ─────────────────────────────────────────────────────
@@ -1157,15 +1204,10 @@
         if (queuePosition === 1) {
           // Auto-call if first in line
           await updateStatus(data.id, "CALLED");
-        } else {
-          const ahead = queuePosition - 1;
-          const peopleStr = ahead === 1 ? "1 person is" : `${ahead} people are`;
-          triggerLocalNotification(
-            `✅ ${selectedShop.name}: Ticket Confirmed`,
-            `You got Ticket #${ticketNo}. There ${peopleStr} ahead of you.`,
-            "queued",
-          );
         }
+
+        // Register Web Push via Edge Function
+        await setupPush(data.id, queuePosition);
       };
 
       // ── STATUS UPDATES ────────────────────────────────────────────────────────
@@ -1210,11 +1252,14 @@
         );
 
         if (newStatus === "CALLED") {
-          triggerLocalNotification(
-            `🔔 ${selectedShop.name}: It's Your Turn!`,
-            `Ticket #${tNum} — please come to the counter within 3 minutes!`,
-            "called",
-          );
+          if (tk && tk.subscription) {
+            sendPush(
+              tk.subscription,
+              `🔔 ${selectedShop.name}: It's Your Turn!`,
+              `Ticket #${tNum} — please come to the counter within 3 minutes!`,
+              "called",
+            );
+          }
           startDisplayTimer(ticketId, notifiedAtIso);
         }
 
