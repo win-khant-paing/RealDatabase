@@ -173,14 +173,14 @@
           </h2>
           <p class="text-slate-500">Choose the shop you want to queue for</p>
         </div>
-
-        <!-- Dynamically loaded list of shops -->
         <div
-          id="dynamic-shop-list"
+          id="shop-list"
           class="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-xl"
         >
+          <!-- Dynamically populated from DB -->
           <div class="col-span-full text-center text-slate-400 py-10">
-            <i class="ph ph-spinner animate-spin text-3xl"></i>
+            <i class="ph ph-spinner animate-spin text-3xl mb-2"></i>
+            <p>Loading available shops...</p>
           </div>
         </div>
       </div>
@@ -221,7 +221,7 @@
             </div>
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1.5"
-                >Password</label
+                >Shop Password</label
               >
               <input
                 type="password"
@@ -279,8 +279,11 @@
           >
             <i class="ph ph-speaker-high"></i> Now Serving
           </p>
-          <p class="text-7xl font-black tracking-tight drop-shadow">
-            #<span id="now-serving-token">---</span>
+          <p
+            id="now-serving-token"
+            class="text-7xl font-black tracking-tight drop-shadow"
+          >
+            ---
           </p>
         </div>
 
@@ -327,7 +330,7 @@
               onclick="generateToken()"
               class="w-full bg-indigo-600 text-white text-lg font-bold py-5 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-md"
             >
-              <i class="ph ph-ticket text-2xl"></i> Get My Ticket
+              <i class="ph ph-ticket text-2xl"></i> Get My Token
             </button>
           </div>
         </div>
@@ -341,10 +344,10 @@
             class="ph ph-warning-circle text-2xl shrink-0 mt-0.5 text-red-500"
           ></i>
           <div class="flex-1">
-            <p class="font-bold text-sm">Ticket Auto-Cancelled</p>
+            <p class="font-bold text-sm">Token Auto-Canceled</p>
             <p class="text-xs mt-0.5 text-red-600 leading-relaxed">
-              Your ticket was automatically cancelled because you didn't respond
-              within the time limit. You can get a new ticket anytime.
+              Your token was automatically canceled because you didn't respond
+              within the time limit. You can get a new token anytime.
             </p>
           </div>
           <button
@@ -365,7 +368,7 @@
             id="my-tokens-label"
             class="hidden text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 px-1"
           >
-            My Tickets (Here)
+            My Tokens (Here)
           </p>
           <div id="my-tokens-list" class="flex flex-col gap-3"></div>
         </div>
@@ -393,7 +396,7 @@
                 Queue Dashboard
               </h2>
               <p class="text-slate-500 text-sm mt-0.5">
-                Manage and process customer tickets
+                Manage and process customer tokens
               </p>
             </div>
             <div class="flex items-center gap-3">
@@ -430,8 +433,8 @@
         <!-- Filter Tabs -->
         <div class="flex gap-2 overflow-x-auto pb-1 -mb-1" id="filter-tabs">
           <button
-            onclick="setFilter('ALL')"
-            data-f="ALL"
+            onclick="setFilter('all')"
+            data-f="all"
             class="ftab active shrink-0 px-4 py-2 rounded-xl font-bold text-sm border-2 transition-all"
           >
             All
@@ -462,7 +465,7 @@
             data-f="CANCELLED"
             class="ftab shrink-0 px-4 py-2 rounded-xl font-bold text-sm border-2 transition-all"
           >
-            <i class="ph ph-x-circle mr-1"></i>Cancelled
+            <i class="ph ph-x-circle mr-1"></i>Canceled
           </button>
         </div>
 
@@ -527,7 +530,7 @@
             option below.
           </p>
           <p class="mt-3 text-xs text-slate-400">
-            Auto-cancelling in
+            Auto-canceling in
             <span
               id="expired-countdown"
               class="font-black text-orange-500 text-sm"
@@ -546,7 +549,7 @@
             onclick="handleExpiredCancel()"
             class="w-full bg-red-50 hover:bg-red-100 text-red-600 py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2"
           >
-            <i class="ph ph-x-circle"></i> Cancel My Ticket
+            <i class="ph ph-x-circle"></i> Cancel My Token
           </button>
         </div>
       </div>
@@ -574,7 +577,7 @@
 
       // ── STATE ─────────────────────────────────────────────────────────────────
       let tokens = [];
-      let staffFilter = "ALL";
+      let staffFilter = "all";
       let scanner = null;
       let myTokenIds = JSON.parse(localStorage.getItem("qm_my_tokens") || "[]");
 
@@ -585,7 +588,8 @@
       let notifiedAlmost = new Set();
       let notifiedCanceled = new Set();
       let notifiedWarning = new Set();
-      let SHOP_INFO = {}; // Dynamically populated from DB
+
+      let shopsCache = {}; // Dynamically populated from DB
 
       // ── TIMER SYSTEM ──────────────────────────────────────────────────────────────
       const CALL_WINDOW_MS = 3 * 60 * 1000;
@@ -601,8 +605,12 @@
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
       }
 
-      function computeTimerState(calledAtMs) {
-        const elapsed = Date.now() - calledAtMs;
+      function computeTimerState(calledAt) {
+        const calledMs =
+          typeof calledAt === "string"
+            ? new Date(calledAt).getTime()
+            : calledAt;
+        const elapsed = Date.now() - calledMs;
         const warnRemain = CALL_WINDOW_MS - elapsed;
         const totalRemain = TOTAL_WINDOW_MS - elapsed;
         const inWarning = warnRemain <= 0 && totalRemain > 0;
@@ -613,14 +621,12 @@
         return { warnRemain, totalRemain, inWarning, displayMs, isUrgent };
       }
 
-      function startDisplayTimer(tokenId, notifiedAtIso) {
-        if (!notifiedAtIso) return;
+      function startDisplayTimer(tokenId, calledAt) {
+        if (!calledAt) return;
         if (!displayTickInterval)
           displayTickInterval = setInterval(tickTimerDisplays, 1000);
-
-        const calledAtMs = new Date(notifiedAtIso).getTime();
         const { warnRemain, totalRemain, inWarning } =
-          computeTimerState(calledAtMs);
+          computeTimerState(calledAt);
 
         if (!myTokenIds.includes(tokenId)) return;
         if (totalRemain <= 0) return;
@@ -633,11 +639,9 @@
         if (warnRemain > 0 && !warningShownFor.has(tokenId)) {
           setTimeout(() => {
             const tok = tokens.find((t) => t.id === tokenId);
-            if (tok?.status !== "CALLED" || !tok.notifiedAt) return;
+            if (tok?.status !== "CALLED") return;
             if (warningShownFor.has(tokenId)) return;
-            const { totalRemain: tRem } = computeTimerState(
-              new Date(tok.notifiedAt).getTime(),
-            );
+            const { totalRemain: tRem } = computeTimerState(tok.notifiedAt);
             if (tRem > 0) showWarningModal(tokenId, Math.ceil(tRem / 1000));
           }, warnRemain);
         }
@@ -668,11 +672,9 @@
           displayTickInterval = null;
           return;
         }
-
         calledTokens.forEach((token) => {
-          const calledAtMs = new Date(token.notifiedAt).getTime();
           const { warnRemain, totalRemain, inWarning, displayMs, isUrgent } =
-            computeTimerState(calledAtMs);
+            computeTimerState(token.notifiedAt);
 
           const custBadge = document.querySelector(
             `[data-timer-badge="${token.id}"]`,
@@ -684,7 +686,7 @@
               timerText.textContent = ` · ⏱ ${formatCountdown(displayMs)}`;
             if (descText) {
               if (inWarning) {
-                descText.textContent = "⚠️ Auto-cancelling soon — act now!";
+                descText.textContent = "⚠️ Auto-canceling soon — act now!";
                 descText.className =
                   "block text-xs font-bold text-red-600 mt-0.5";
               } else if (isUrgent) {
@@ -738,11 +740,11 @@
             if (inWarning && !notifiedWarning.has(token.id)) {
               notifiedWarning.add(token.id);
               if (token.subscription) {
-                const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
+                const shopName = shopsCache[selectedShop]?.name || "the shop";
                 sendPush(
                   token.subscription,
                   `⚠️ ${shopName}: Time is up!`,
-                  `Your 3 minutes have passed. Return to the counter now or your ticket will be cancelled.`,
+                  `Your 3 minutes have passed. Return to the counter now or your token will be canceled.`,
                   "warning",
                 );
               }
@@ -750,9 +752,9 @@
 
             if (
               totalRemain <= 0 &&
-              !notifiedWarning.has(token.id + "_cancelled")
+              !notifiedWarning.has(token.id + "_canceled")
             ) {
-              notifiedWarning.add(token.id + "_cancelled");
+              notifiedWarning.add(token.id + "_canceled");
               updateStatus(token.id, "CANCELLED");
             }
           }
@@ -826,7 +828,7 @@
         await updateStatus(tid, "CANCELLED");
       };
 
-      // ── BOOT & DATA LOADING ───────────────────────────────────────────────────
+      // ── BOOT ──────────────────────────────────────────────────────────────────
       window.addEventListener("load", async () => {
         if ("serviceWorker" in navigator) {
           try {
@@ -837,48 +839,50 @@
               playSound(e.data.notificationType);
           });
         }
+        await loadShops();
         switchView("home");
       });
 
-      async function loadShopsList() {
+      // ── MULTI-TENANT DATA INIT ────────────────────────────────────────────────
+      async function loadShops() {
         const { data, error } = await supabase
           .from("Shop")
           .select("id, name")
           .eq("is_available", true);
-        if (error) {
-          toast("Failed to load shops", "error");
-          return;
-        }
+        if (data) {
+          const container = document.getElementById("shop-list");
+          container.innerHTML = "";
+          data.forEach((s, idx) => {
+            const colors = [
+              "indigo",
+              "rose",
+              "emerald",
+              "amber",
+              "violet",
+              "blue",
+            ];
+            const c = colors[idx % colors.length];
+            shopsCache[s.id] = {
+              name: s.name,
+              initial: s.name.charAt(0).toUpperCase(),
+              color: `${c}-600`,
+              bg: `bg-${c}-600`,
+            };
 
-        const list = document.getElementById("dynamic-shop-list");
-        list.innerHTML = "";
-
-        const bgColors = [
-          "bg-indigo-600",
-          "bg-red-600",
-          "bg-emerald-500",
-          "bg-amber-500",
-          "bg-blue-500",
-          "bg-purple-500",
-        ];
-
-        data.forEach((shop, i) => {
-          const bg = bgColors[i % bgColors.length];
-          const initial = shop.name.charAt(0).toUpperCase();
-          SHOP_INFO[shop.id] = { name: shop.name, initial: initial, bg: bg };
-
-          list.innerHTML += `
-            <button onclick="selectShop('${shop.id}')" class="bg-white hover:bg-slate-50 border-2 border-transparent hover:border-slate-300 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all flex flex-col items-center gap-4">
-                <div class="${bg} text-white w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black shadow-inner">
-                    ${initial}
+            container.innerHTML += `
+            <button onclick="selectShop('${s.id}')" class="bg-white hover:bg-${c}-50 border-2 border-transparent hover:border-${c}-400 p-6 rounded-2xl shadow-sm hover:shadow-lg transition-all flex flex-col items-center gap-4">
+                <div class="bg-${c}-100 text-${c}-600 w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black shadow-inner">
+                    ${shopsCache[s.id].initial}
                 </div>
-                <p class="font-bold text-lg text-slate-800">${shop.name}</p>
-            </button>
-        `;
-        });
+                <p class="font-bold text-lg text-slate-800">${s.name}</p>
+            </button>`;
+          });
+          if (data.length === 0)
+            container.innerHTML =
+              '<p class="col-span-full text-center text-slate-500">No shops are currently available.</p>';
+        }
       }
 
-      // ── MULTI-TENANT DATA INIT ────────────────────────────────────────────────
       async function initShopData() {
         clearAllTimers();
         notifiedAlmost.clear();
@@ -898,9 +902,10 @@
         }
         tokens = data || [];
 
-        const shop = SHOP_INFO[selectedShop] || {
+        const shop = shopsCache[selectedShop] || {
           name: "Unknown",
           initial: "?",
+          color: "indigo-600",
           bg: "bg-indigo-600",
         };
 
@@ -928,7 +933,7 @@
 
       function subscribeRealtime() {
         rtChannel = supabase
-          .channel(`ticket_${selectedShop}`)
+          .channel(`queue_${selectedShop}`)
           .on(
             "postgres_changes",
             {
@@ -965,18 +970,18 @@
                   ) {
                     onServerAutoCancel(mergedToken.id);
 
-                    // PUSH TRIGGER: Cancelled Push
+                    // PUSH TRIGGER 4: Token Canceled Push
                     if (
                       mergedToken.subscription &&
                       !notifiedCanceled.has(mergedToken.id)
                     ) {
                       notifiedCanceled.add(mergedToken.id);
                       const shopName =
-                        SHOP_INFO[selectedShop]?.name || "the shop";
+                        shopsCache[selectedShop]?.name || "the shop";
                       sendPush(
                         mergedToken.subscription,
-                        `❌ ${shopName}: Ticket Cancelled`,
-                        `Your ticket #${mergedToken.ticketNo} has been cancelled.`,
+                        `❌ ${shopName}: Token Canceled`,
+                        `Your ticket #${mergedToken.ticketNo} has been canceled.`,
                         "canceled",
                       );
                     }
@@ -1004,10 +1009,7 @@
         if (currentRole !== "customer") return;
         const pending = tokens
           .filter((t) => t.status === "PENDING")
-          .sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          );
+          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
         myTokenIds.forEach((tokenId) => {
           const pos = pending.findIndex((t) => t.id === tokenId);
@@ -1015,7 +1017,7 @@
             notifiedAlmost.add(tokenId);
             const token = tokens.find((t) => t.id === tokenId);
             if (token && token.subscription) {
-              const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
+              const shopName = shopsCache[selectedShop]?.name || "the shop";
               sendPush(
                 token.subscription,
                 `⏳ ${shopName}: You're Next!`,
@@ -1041,10 +1043,7 @@
           selectedShop = null;
           clearAllTimers();
           if (rtChannel) supabase.removeChannel(rtChannel);
-        } else if (view === "shop-select") {
-          loadShopsList();
-          navRight.innerHTML = `<button onclick="goHome()" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm transition"><i class="ph ph-arrow-left"></i> Back</button>`;
-        } else if (view === "staff-login") {
+        } else if (view === "shop-select" || view === "staff-login") {
           navRight.innerHTML = `<button onclick="goHome()" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm transition"><i class="ph ph-arrow-left"></i> Back</button>`;
         } else if (view === "customer") {
           navRight.innerHTML = `<button onclick="switchView('shop-select')" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm transition"><i class="ph ph-storefront"></i> Change Shop</button>`;
@@ -1083,11 +1082,10 @@
         const u = document.getElementById("login-user").value.trim();
         const p = document.getElementById("login-pass").value.trim();
 
-        // Staff now logs in by checking Shop's credentials in the newly provided DB
         const { data, error } = await supabase
           .from("Shop")
           .select("id, name")
-          .eq("name", u)
+          .ilike("name", u)
           .eq("password", p)
           .single();
 
@@ -1099,17 +1097,21 @@
           return;
         }
 
-        // Quick populate SHOP_INFO for the dash
-        SHOP_INFO[data.id] = {
-          name: data.name,
-          initial: data.name.charAt(0).toUpperCase(),
-          bg: "bg-emerald-600",
-        };
-
         document.getElementById("login-pass").value = "";
         selectedShop = data.id;
+
+        // Add to cache if not present
+        if (!shopsCache[data.id]) {
+          shopsCache[data.id] = {
+            name: data.name,
+            initial: data.name.charAt(0).toUpperCase(),
+            color: "emerald-600",
+            bg: "bg-emerald-600",
+          };
+        }
+
         currentRole = "staff";
-        toast(`Welcome, ${data.name} Staff!`, "success");
+        toast(`Welcome to ${data.name} Dashboard!`, "success");
         switchView("staff");
         await initShopData();
       };
@@ -1121,66 +1123,64 @@
         btn.innerHTML =
           '<i class="ph ph-spinner animate-spin text-2xl"></i> Generating...';
 
-        // Calculate max ticket number for current shop
-        const maxTicketNo = tokens.reduce(
-          (max, t) => Math.max(max, t.ticketNo || t.user_number || 0),
+        const maxTicket = tokens.reduce(
+          (max, t) => Math.max(max, t.ticketNo || 0),
           0,
         );
-        const userNumber = maxTicketNo + 1;
+        const userNumber = maxTicket + 1;
 
         const activeCount = tokens.filter(
           (t) => t.status === "PENDING" || t.status === "CALLED",
         ).length;
         const queuePosition = activeCount + 1;
-        const timestampMs = Date.now();
 
         const { data, error } = await supabase
           .from("Ticket")
           .insert({
             shopId: selectedShop,
-            shop_id: selectedShop, // Legacy fallback column
             status: "PENDING",
             ticketNo: userNumber,
-            user_number: userNumber, // Legacy fallback column
             personCount: 1,
-            timestamp: timestampMs, // Legacy fallback column
           })
           .select()
           .single();
 
         if (error) {
           console.error("Insert error:", error);
-          toast("Failed to generate ticket. Try again.", "error");
+          toast("Failed to generate token. Try again.", "error");
           btn.disabled = false;
-          btn.innerHTML = '<i class="ph ph-ticket text-2xl"></i> Get My Ticket';
+          btn.innerHTML = '<i class="ph ph-ticket text-2xl"></i> Get My Token';
           return;
         }
 
-        const newId = data.id;
+        const id = data.id;
+        // Prevent 'Almost' trigger immediately if joining a short queue
+        if (queuePosition <= 2) notifiedAlmost.add(id);
 
-        if (queuePosition <= 2) notifiedAlmost.add(newId);
-
-        myTokenIds.push(newId);
+        myTokenIds.push(id);
         localStorage.setItem("qm_my_tokens", JSON.stringify(myTokenIds));
 
         btn.disabled = false;
-        btn.innerHTML = '<i class="ph ph-ticket text-2xl"></i> Get My Ticket';
-        toast(`Ticket #${userNumber} created!`, "success");
+        btn.innerHTML = '<i class="ph ph-ticket text-2xl"></i> Get My Token';
+        toast(
+          `Ticket #${userNumber} created for ${shopsCache[selectedShop].name}!`,
+          "success",
+        );
 
         if (queuePosition === 1) {
-          const calledAtIso = new Date().toISOString();
+          const nowIso = new Date().toISOString();
           await supabase
             .from("Ticket")
-            .update({ status: "CALLED", notifiedAt: calledAtIso })
-            .eq("id", newId);
-          startDisplayTimer(newId, calledAtIso);
+            .update({ status: "CALLED", notifiedAt: nowIso })
+            .eq("id", id);
+          startDisplayTimer(id, nowIso);
         }
 
-        await setupPush(newId, queuePosition, userNumber);
+        await setupPush(id, userNumber, queuePosition);
       };
 
       // ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
-      async function setupPush(tokenId, position, ticketNo) {
+      async function setupPush(tokenId, ticketNo, position) {
         if (!("Notification" in window) || !("PushManager" in window)) return;
         const perm = await Notification.requestPermission();
         if (perm !== "granted") return;
@@ -1196,7 +1196,7 @@
             .from("Ticket")
             .update({ subscription: sub.toJSON() })
             .eq("id", tokenId);
-          const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
+          const shopName = shopsCache[selectedShop]?.name || "the shop";
 
           if (position === 1) {
             await sendPush(
@@ -1211,7 +1211,7 @@
               ahead === 1 ? "1 person is" : `${ahead} people are`;
             await sendPush(
               sub.toJSON(),
-              `✅ ${shopName}: Ticket Confirmed`,
+              `✅ ${shopName}: Token Confirmed`,
               `You got ticket #${ticketNo}. There ${peopleStr} ahead of you.`,
               "queued",
             );
@@ -1247,28 +1247,18 @@
       // ── STATUS UPDATES ────────────────────────────────────────────────────────
       window.updateStatus = async function (tokenId, newStatus) {
         const i = tokens.findIndex((t) => t.id === tokenId);
-
-        const timeIso = new Date().toISOString();
-        const timeMs = Date.now();
-        const newNotifiedAt = newStatus === "CALLED" ? timeIso : undefined;
-        const newServedAt = newStatus === "SERVED" ? timeIso : undefined;
+        const nowIso = new Date().toISOString();
 
         if (i !== -1) {
           tokens[i].status = newStatus;
-          if (newNotifiedAt) {
-            tokens[i].notifiedAt = newNotifiedAt;
-            tokens[i].called_at = timeMs;
-          }
-          if (newServedAt) tokens[i].servedAt = newServedAt;
+          if (newStatus === "CALLED") tokens[i].notifiedAt = nowIso;
+          if (newStatus === "SERVED") tokens[i].servedAt = nowIso;
         }
         refreshViews();
 
         const updatePayload = { status: newStatus };
-        if (newNotifiedAt) {
-          updatePayload.notifiedAt = newNotifiedAt;
-          updatePayload.called_at = timeMs; // Legacy fallback column
-        }
-        if (newServedAt) updatePayload.servedAt = newServedAt;
+        if (newStatus === "CALLED") updatePayload.notifiedAt = nowIso;
+        if (newStatus === "SERVED") updatePayload.servedAt = nowIso;
 
         const { error } = await supabase
           .from("Ticket")
@@ -1285,17 +1275,18 @@
         const labels = {
           CALLED: "Called",
           SERVED: "Served",
-          CANCELLED: "Cancelled",
+          CANCELLED: "Canceled",
         };
+        const ticketNo = tokens[i]?.ticketNo || "Unknown";
         toast(
-          `Ticket updated → ${labels[newStatus] || newStatus}`,
+          `Ticket #${ticketNo} → ${labels[newStatus] || newStatus}`,
           newStatus === "CANCELLED" ? "info" : "success",
         );
 
         if (newStatus === "CALLED") {
           const token = tokens.find((t) => t.id === tokenId);
           if (token?.subscription) {
-            const shopName = SHOP_INFO[selectedShop]?.name || "the shop";
+            const shopName = shopsCache[selectedShop]?.name || "the shop";
             await sendPush(
               token.subscription,
               `🔔 ${shopName}: It's Your Turn!`,
@@ -1303,7 +1294,7 @@
               "called",
             );
           }
-          startDisplayTimer(tokenId, timeIso);
+          startDisplayTimer(tokenId, nowIso);
         }
 
         if (newStatus === "SERVED" || newStatus === "CANCELLED")
@@ -1314,9 +1305,8 @@
           board.classList.remove("hidden", "pop-in");
           void board.offsetWidth;
           board.classList.add("pop-in");
-          const servedToken = tokens.find((t) => t.id === tokenId);
           document.getElementById("now-serving-token").textContent =
-            servedToken?.ticketNo || "---";
+            `#${String(ticketNo).padStart(3, "0")}`;
         }
 
         refreshViews();
@@ -1343,10 +1333,7 @@
 
         const pending = tokens
           .filter((t) => t.status === "PENDING")
-          .sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          );
+          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
         mine
           .slice()
@@ -1372,10 +1359,11 @@
               },
               CANCELLED: {
                 bar: "bg-red-400",
-                badge: `<span class="bg-red-50 text-red-600 text-xs font-bold px-2.5 py-1 rounded-lg">✕ Cancelled</span>`,
+                badge: `<span class="bg-red-50 text-red-600 text-xs font-bold px-2.5 py-1 rounded-lg">✕ Canceled</span>`,
               },
             };
             const cfg = statusCfg[token.status] || statusCfg.PENDING;
+            const formattedId = `#${String(token.ticketNo).padStart(3, "0")}`;
 
             card.className =
               "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden fade-in";
@@ -1385,7 +1373,7 @@
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-xs text-slate-400 font-semibold uppercase tracking-widest mb-0.5">Your Ticket</p>
-                        <p class="text-5xl font-black tracking-tight ${token.status === "CALLED" ? "text-blue-600" : token.status !== "PENDING" ? "text-slate-400 line-through" : "text-slate-800"}">#${token.ticketNo}</p>
+                        <p class="text-5xl font-black tracking-tight ${token.status === "CALLED" ? "text-blue-600" : token.status !== "PENDING" ? "text-slate-400 line-through" : "text-slate-800"}">${formattedId}</p>
                     </div>
                     <div class="qr-wrap w-20 h-20 mt-1" id="qr-${token.id}"></div>
                 </div>
@@ -1401,6 +1389,7 @@
               const qrEl = document.getElementById(`qr-${token.id}`);
               if (qrEl && !qrEl.dataset.rendered) {
                 qrEl.dataset.rendered = "1";
+                // Encode the UUID for scanning, so the staff matches the exact database row
                 renderQR(token.id, qrEl);
               }
             });
@@ -1410,7 +1399,7 @@
       function renderQR(text, container) {
         const img = document.createElement("img");
         img.src = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(text)}&bgcolor=ffffff&color=1e293b&margin=2`;
-        img.alt = "QR Code";
+        img.alt = text;
         img.className = "w-full h-full rounded-lg";
         container.appendChild(img);
       }
@@ -1424,19 +1413,13 @@
           pending.length;
 
         const filtered =
-          staffFilter === "ALL"
+          staffFilter === "all"
             ? [...tokens].sort(
-                (a, b) =>
-                  new Date(a.createdAt).getTime() -
-                  new Date(b.createdAt).getTime(),
+                (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
               )
             : tokens
                 .filter((t) => t.status === staffFilter)
-                .sort(
-                  (a, b) =>
-                    new Date(a.createdAt).getTime() -
-                    new Date(b.createdAt).getTime(),
-                );
+                .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
         const grid = document.getElementById("staff-grid");
         grid.innerHTML = "";
@@ -1444,7 +1427,7 @@
         if (filtered.length === 0) {
           grid.innerHTML = `<div class="col-span-full flex flex-col items-center py-20 text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-200">
             <i class="ph ph-coffee text-5xl mb-3 text-slate-300"></i>
-            <p class="font-bold text-slate-500">No tickets here</p>
+            <p class="font-bold text-slate-500">No tokens here</p>
             <p class="text-sm">Queue is clear!</p>
         </div>`;
           return;
@@ -1469,7 +1452,7 @@
           CANCELLED: {
             bar: "bg-red-400",
             badge: "bg-red-50 text-red-600",
-            label: "CANCELLED",
+            label: "CANCELED",
           },
         };
 
@@ -1480,6 +1463,7 @@
             minute: "2-digit",
           });
           const card = document.createElement("div");
+          const formattedId = `#${String(token.ticketNo).padStart(3, "0")}`;
 
           let buttons = "";
           if (token.status === "PENDING") {
@@ -1505,14 +1489,13 @@
           const staffTimerBadge =
             token.status === "CALLED" && token.notifiedAt
               ? (() => {
-                  const calledAtMs = new Date(token.notifiedAt).getTime();
                   const {
                     warnRemain,
                     totalRemain,
                     inWarning,
                     displayMs,
                     isUrgent,
-                  } = computeTimerState(calledAtMs);
+                  } = computeTimerState(token.notifiedAt);
                   const colorCls =
                     inWarning || isUrgent
                       ? "bg-red-50 text-red-600"
@@ -1533,9 +1516,8 @@
           const staffCallDesc =
             token.status === "CALLED" && token.notifiedAt
               ? (() => {
-                  const calledAtMs = new Date(token.notifiedAt).getTime();
                   const { warnRemain, totalRemain, inWarning } =
-                    computeTimerState(calledAtMs);
+                    computeTimerState(token.notifiedAt);
                   if (inWarning)
                     return `<p class="text-xs text-red-500 font-semibold mt-2 flex items-center gap-1"><i class="ph ph-warning-circle"></i> Auto-cancel window active</p>`;
                   if (warnRemain < 60000)
@@ -1555,8 +1537,8 @@
                         <span class="text-xs text-slate-400 flex items-center gap-1"><i class="ph ph-clock"></i> ${time}</span>
                     </div>
                 </div>
-                <p class="text-xs text-slate-400 font-semibold tracking-widest uppercase mb-0.5">ID: ${token.id.slice(0, 8)}...</p>
-                <p class="text-5xl font-black tracking-tight text-slate-800 mb-1">#${token.ticketNo}</p>
+                <p class="text-xs text-slate-400 font-semibold tracking-widest uppercase mb-0.5">Ticket</p>
+                <p class="text-5xl font-black tracking-tight text-slate-800 mb-1">${formattedId}</p>
                 ${staffCallDesc}
                 <div class="flex gap-2 mt-4">${buttons}</div>
             </div>`;
@@ -1616,16 +1598,21 @@
 
       function onScan(text) {
         closeScanner();
+        // Scan expects the UUID matching token.id
         const token = tokens.find((t) => t.id === text);
         if (!token) {
-          toast(`Ticket UUID not found for this shop!`, "error");
+          toast(`Ticket not found for this shop!`, "error");
           return;
         }
         if (token.status === "SERVED" || token.status === "CANCELLED") {
-          toast(`Ticket #${token.ticketNo} already ${token.status}`, "error");
+          toast(
+            `Ticket #${token.ticketNo} already ${token.status.toLowerCase()}`,
+            "error",
+          );
           return;
         }
 
+        // Instantly mark the token as served upon scan
         updateStatus(token.id, "SERVED");
       }
 
@@ -1637,7 +1624,7 @@
           info: "bg-indigo-600",
         };
         const el = document.createElement("div");
-        el.className = `${cfg[type] || cfg.info} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 font-medium text-sm pointer-events-auto transition-all duration-300 translate-y-4 opacity-0 max-w-xs`;
+        el.className = `${cfg[type] || cfg.info} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 font-medium text-sm pointer-events-auto transition-all duration-300 translate-y-4 opacity-0 max-w-xs z-50`;
         el.innerHTML = `<i class="ph ph-${type === "success" ? "check-circle" : type === "error" ? "warning-circle" : "info"} text-lg shrink-0"></i> ${msg}`;
         document.getElementById("toasts").appendChild(el);
         requestAnimationFrame(() =>
